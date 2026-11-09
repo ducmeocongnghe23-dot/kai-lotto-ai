@@ -1,0 +1,171 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KAI LOTTO AI</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#091a2a;color:#fff;font-family:Arial,sans-serif}
+header{padding:25px 18px;background:linear-gradient(120deg,#087f75,#102c49);text-align:center}
+h1{margin:0;color:#f5c65b;font-size:27px}
+p{color:#b9cbd7;font-size:13px;line-height:1.6}
+main{max-width:650px;margin:auto;padding:14px}
+.card{background:#142c40;border:1px solid #2a5061;border-radius:18px;padding:17px;margin-bottom:15px}
+h3{margin:0 0 15px;color:#64e4c6}
+button,select,textarea{font:inherit}
+button{background:#12ad90;color:white;border:0;border-radius:12px;padding:13px;cursor:pointer;font-weight:bold}
+button:active{background:#d5a333}
+select{background:#203f55;color:white;padding:12px;border-radius:10px;width:100%;border:1px solid #4b7180}
+textarea{width:100%;min-height:110px;background:#0c2031;color:white;border:1px solid #507082;border-radius:10px;padding:12px}
+.balls{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin:20px 0}
+.ball{width:43px;height:43px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(140deg,#ffda65,#b47a10);color:#fff;font-size:19px;font-weight:bold}
+.stat{background:#203d51;padding:12px;border-radius:10px;margin:8px 0}
+.small{font-size:12px;color:#aac4cf}
+.full{width:100%}
+</style>
+</head>
+<body>
+<header>
+<h1>KAI LOTTO AI 2.0</h1>
+<p>PHÂN TÍCH VIETLOTT POWER 6/55</p>
+</header>
+<main>
+<div class="card">
+<h3>🎯 Tạo bộ số tham khảo</h3>
+<select id="method">
+<option value="random">Ngẫu nhiên đều</option>
+<option value="bayes">Bayesian</option>
+<option value="hot">Ưu tiên số nóng</option>
+<option value="cold">Ưu tiên số lạnh</option>
+</select>
+<div class="balls" id="balls"></div>
+<button class="full" onclick="generate()">TẠO BỘ SỐ</button>
+<p id="notice"></p>
+</div>
+<div class="card">
+<h3>📊 Thống kê lịch sử</h3>
+<div id="stats"></div>
+</div>
+<div class="card">
+<h3>🧠 Monte Carlo</h3>
+<p>Mô phỏng 5.000 bộ số theo phương pháp đang chọn.</p>
+<button class="full" onclick="simulate()">CHẠY MÔ PHỎNG</button>
+<div id="simulation"></div>
+</div>
+<div class="card">
+<h3>🔬 Backtesting</h3>
+<p>Kiểm tra trên các kỳ lịch sử theo thứ tự thời gian. Mỗi lần chỉ sử dụng dữ liệu của các kỳ trước.</p>
+<button class="full" onclick="backtest()">KIỂM THỬ</button>
+<div id="test"></div>
+</div>
+<div class="card">
+<h3>📥 Dữ liệu kết quả</h3>
+<p>Mỗi dòng nhập 6 số chính, cách nhau bằng dấu cách hoặc dấu phẩy. Nhập theo thứ tự từ kỳ cũ đến kỳ mới.</p>
+<textarea id="data" placeholder="06 14 23 32 41 53"></textarea>
+<button class="full" onclick="save()">LƯU DỮ LIỆU</button>
+<p id="count"></p>
+</div>
+<p class="small">Công cụ thống kê, không bảo đảm dự đoán chính xác. Mọi bộ 6 số hợp lệ có xác suất Jackpot 1 bằng nhau nếu kỳ quay công bằng.</p>
+</main>
+<script>
+let history=[];
+try{history=JSON.parse(localStorage.getItem("kai_history")||"[]")}catch(e){}
+const $=id=>document.getElementById(id);
+const fmt=n=>String(n).padStart(2,"0");
+function counts(data){
+let c=Array(56).fill(0);
+data.forEach(row=>row.forEach(n=>c[n]++));
+return c;
+}
+function weights(data,method){
+let c=counts(data),N=data.length;
+return Array.from({length:55},(_,i)=>{
+let n=i+1;
+if(method==="random")return 1;
+if(method==="hot")return c[n]+1;
+if(method==="cold")return 1/(c[n]+1);
+return (c[n]+1)/(N+55/6);
+});
+}
+function pick(data,method){
+let w=weights(data,method);
+let pool=Array.from({length:55},(_,i)=>i+1);
+let out=[];
+while(out.length<6){
+let total=pool.reduce((s,n)=>s+w[n-1],0);
+let r=Math.random()*total,chosen=pool[pool.length-1];
+for(let n of pool){
+r-=w[n-1];
+if(r<=0){chosen=n;break}
+}
+out.push(chosen);
+pool=pool.filter(n=>n!==chosen);
+}
+return out.sort((a,b)=>a-b);
+}
+function draw(nums){
+$("balls").innerHTML=nums.map(n=>'<div class="ball">'+fmt(n)+'</div>').join("");
+}
+function generate(){
+let method=$("method").value;
+draw(pick(history,method));
+$("notice").textContent="Phương pháp: "+$("method").selectedOptions[0].text;
+}
+function stats(){
+let c=counts(history);
+let sorted=Array.from({length:55},(_,i)=>i+1).sort((a,b)=>c[b]-c[a]||a-b);
+$("stats").innerHTML=
+'<div class="stat">Số kỳ đã nhập: '+history.length+'</div>'+
+'<div class="stat">Xuất hiện nhiều: '+sorted.slice(0,10).map(n=>fmt(n)+" ("+c[n]+")").join(", ")+'</div>'+
+'<div class="stat">Xuất hiện ít: '+sorted.slice(-10).reverse().map(n=>fmt(n)+" ("+c[n]+")").join(", ")+'</div>';
+$("count").textContent="Đã lưu "+history.length+" kỳ quay.";
+}
+function save(){
+let rows=$("data").value.trim().split(/\n/);
+let result=[];
+for(let row of rows){
+if(!row.trim())continue;
+let nums=row.trim().split(/[\s,;]+/).map(Number);
+if(nums.length!==6||nums.some(n=>!Number.isInteger(n)||n<1||n>55)||new Set(nums).size!==6){
+alert("Dòng không hợp lệ: "+row);
+return;
+}
+result.push(nums.sort((a,b)=>a-b));
+}
+if(!result.length){alert("Chưa có dữ liệu");return}
+history=result;
+localStorage.setItem("kai_history",JSON.stringify(history));
+stats();alert("Đã lưu dữ liệu");
+}
+function simulate(){
+let method=$("method").value;
+let freq=Array(56).fill(0);
+for(let i=0;i<5000;i++){
+pick(history,method).forEach(n=>freq[n]++);
+}
+let top=Array.from({length:55},(_,i)=>i+1).sort((a,b)=>freq[b]-freq[a]).slice(0,6);
+$("simulation").innerHTML='<div class="stat">6 số được chọn nhiều trong mô phỏng: '+top.map(fmt).join(" - ")+'</div><p class="small">Đây là tần suất do thuật toán tạo ra, không phải xác suất trúng thực tế.</p>';
+}
+function backtest(){
+if(history.length<30){
+$("test").textContent="Cần ít nhất 30 kỳ để kiểm thử.";
+return;
+}
+let method=$("method").value;
+let hits=Array(7).fill(0);
+let start=20;
+for(let i=start;i<history.length;i++){
+let predicted=pick(history.slice(0,i),method);
+let match=predicted.filter(n=>history[i].includes(n)).length;
+hits[match]++;
+}
+$("test").innerHTML='<div class="stat">Đã kiểm thử '+(history.length-start)+' kỳ.</div>'+
+hits.map((n,i)=>'<div class="stat">Trùng '+i+' số: '+n+' kỳ</div>').join("")+
+'<p class="small">Mỗi kỳ thử tạo một bộ số ngẫu nhiên có trọng số. Kết quả có thể thay đổi giữa các lần chạy; chưa đủ để chứng minh lợi thế dự báo.</p>';
+}
+stats();generate();
+</script>
+</body>
+</html>
